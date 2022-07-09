@@ -274,6 +274,7 @@ There are several different ways to deploy and run kaniko:
 - [In gVisor](#running-kaniko-in-gvisor)
 - [In Google Cloud Build](#running-kaniko-in-google-cloud-build)
 - [In Docker](#running-kaniko-in-docker)
+- [Rootless](#running-rootless)
 
 #### Running kaniko in a Kubernetes cluster
 
@@ -395,6 +396,23 @@ as a remote image destination:
 
 ```shell
 ./run_in_docker.sh /workspace/Dockerfile /home/user/kaniko-project gcr.io/$PROJECT_ID/$TAG
+```
+
+#### Running Rootless
+Rootless execution is done via the help of rootlesskit.
+To run rootless, use the TODO: image.
+
+RootlessKit needs to disable apparmor and seccomp:
+- In Kubernetes Pods: Set the annotations of the pod to the following: ```yaml
+  annotations:
+    container.apparmor.security.beta.kubernetes.io/<ContainerName>: unconfined
+    container.seccomp.security.alpha.kubernetes.io/<ContainerName>: unconfined
+```
+- In Docker: ```console
+$ docker run \
+  --security-opt seccomp=unconfined \
+  --security-opt apparmor=unconfined \
+  TODO: image
 ```
 
 ### Caching
