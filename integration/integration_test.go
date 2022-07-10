@@ -154,22 +154,27 @@ func buildRequiredImages() error {
 	}{{
 		name:    "Building kaniko image",
 		command: []string{"docker", "build", "-t", ExecutorImage, "-f", "../deploy/Dockerfile", ".."},
-	}, {
-		name:    "Building cache warmer image",
-		command: []string{"docker", "build", "-t", WarmerImage, "-f", "../deploy/Dockerfile_warmer", ".."},
-	}, {
-		name:    "Building onbuild base image",
-		command: []string{"docker", "build", "-t", config.onbuildBaseImage, "-f", fmt.Sprintf("%s/Dockerfile_onbuild_base", dockerfilesPath), "."},
-	}, {
-		name:    "Pushing onbuild base image",
-		command: []string{"docker", "push", config.onbuildBaseImage},
-	}, {
-		name:    "Building hardlink base image",
-		command: []string{"docker", "build", "-t", config.hardlinkBaseImage, "-f", fmt.Sprintf("%s/Dockerfile_hardlink_base", dockerfilesPath), "."},
-	}, {
-		name:    "Pushing hardlink base image",
-		command: []string{"docker", "push", config.hardlinkBaseImage},
-	}}
+	},
+		{
+			name:    "Building rootless kaniko image",
+			command: []string{"docker", "build", "-t", RootlessExecutorImage, "-f", "../deploy/Dockerfile", "--target", "rootless", ".."},
+		},
+		{
+			name:    "Building cache warmer image",
+			command: []string{"docker", "build", "-t", WarmerImage, "-f", "../deploy/Dockerfile_warmer", ".."},
+		}, {
+			name:    "Building onbuild base image",
+			command: []string{"docker", "build", "-t", config.onbuildBaseImage, "-f", fmt.Sprintf("%s/Dockerfile_onbuild_base", dockerfilesPath), "."},
+		}, {
+			name:    "Pushing onbuild base image",
+			command: []string{"docker", "push", config.onbuildBaseImage},
+		}, {
+			name:    "Building hardlink base image",
+			command: []string{"docker", "build", "-t", config.hardlinkBaseImage, "-f", fmt.Sprintf("%s/Dockerfile_hardlink_base", dockerfilesPath), "."},
+		}, {
+			name:    "Pushing hardlink base image",
+			command: []string{"docker", "push", config.hardlinkBaseImage},
+		}}
 
 	for _, setupCmd := range setupCommands {
 		fmt.Println(setupCmd.name)
@@ -262,7 +267,10 @@ func testGitBuildcontextHelper(t *testing.T, repo string) {
 	kanikoImage := GetKanikoImage(config.imageRepo, "Dockerfile_test_git")
 	dockerRunFlags := []string{"run", "--net=host"}
 	dockerRunFlags = addServiceAccountFlags(dockerRunFlags, config.serviceAccount)
-	dockerRunFlags = append(dockerRunFlags, ExecutorImage,
+	if config.rootless {
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
+	dockerRunFlags = append(dockerRunFlags, getExecutorImage(config.rootless),
 		"-f", dockerfile,
 		"-d", kanikoImage,
 		"-c", fmt.Sprintf("git://%s", repo))
@@ -327,9 +335,12 @@ func TestGitBuildcontextSubPath(t *testing.T) {
 	kanikoImage := GetKanikoImage(config.imageRepo, "Dockerfile_test_git")
 	dockerRunFlags := []string{"run", "--net=host"}
 	dockerRunFlags = addServiceAccountFlags(dockerRunFlags, config.serviceAccount)
+	if config.rootless {
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
 	dockerRunFlags = append(
 		dockerRunFlags,
-		ExecutorImage,
+		getExecutorImage(config.rootless),
 		"-f", dockerfile,
 		"-d", kanikoImage,
 		"-c", fmt.Sprintf("git://%s", repo),
@@ -369,7 +380,10 @@ func TestBuildViaRegistryMirrors(t *testing.T) {
 	kanikoImage := GetKanikoImage(config.imageRepo, "Dockerfile_registry_mirror")
 	dockerRunFlags := []string{"run", "--net=host"}
 	dockerRunFlags = addServiceAccountFlags(dockerRunFlags, config.serviceAccount)
-	dockerRunFlags = append(dockerRunFlags, ExecutorImage,
+	if config.rootless {
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
+	dockerRunFlags = append(dockerRunFlags, getExecutorImage(config.rootless),
 		"-f", dockerfile,
 		"-d", kanikoImage,
 		"--registry-mirror", "doesnotexist.example.com",
@@ -410,7 +424,10 @@ func TestKanikoDir(t *testing.T) {
 	kanikoImage := GetKanikoImage(config.imageRepo, "Dockerfile_registry_mirror")
 	dockerRunFlags := []string{"run", "--net=host"}
 	dockerRunFlags = addServiceAccountFlags(dockerRunFlags, config.serviceAccount)
-	dockerRunFlags = append(dockerRunFlags, ExecutorImage,
+	if config.rootless {
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
+	dockerRunFlags = append(dockerRunFlags, getExecutorImage(config.rootless),
 		"-f", dockerfile,
 		"-d", kanikoImage,
 		"--kaniko-dir", "/not-kaniko",
@@ -883,6 +900,7 @@ func initIntegrationTestConfig() *integrationTestConfig {
 	flag.BoolVar(&disableGcsAuth, "disable-gcs-auth", false, "Disable GCS Authentication. Used for local integration tests")
 	// adds the possibility to run a single dockerfile. This is useful since running all images can exhaust the dockerhub pull limit
 	flag.StringVar(&c.dockerfilesPattern, "dockerfiles-pattern", "Dockerfile_test*", "The pattern to match dockerfiles with")
+	flag.BoolVar(&c.rootless, "rootless", false, "Run the tests with rootless executor image")
 	flag.Parse()
 
 	if len(c.serviceAccount) > 0 {

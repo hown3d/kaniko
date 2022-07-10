@@ -61,7 +61,7 @@ func TestSnapshotBenchmark(t *testing.T) {
 				var benchmarkDir string
 				benchmarkDir, *err = buildKanikoImage(t.Logf, "", dockerfile,
 					buildArgs, []string{}, kanikoImage, contextDir, config.gcsBucket, config.gcsClient,
-					config.serviceAccount, false)
+					config.serviceAccount, false, config.rootless)
 				if *err != nil {
 					return
 				}

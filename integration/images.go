@@ -40,6 +40,8 @@ import (
 const (
 	// ExecutorImage is the name of the kaniko executor image
 	ExecutorImage = "executor-image"
+	// RootlessExecutorImage is the name of the kaniko executor image
+	RootlessExecutorImage = "rootless-executor-image"
 	//WarmerImage is the name of the kaniko cache warmer image
 	WarmerImage = "warmer-image"
 
@@ -291,7 +293,7 @@ func (d *DockerFileBuilder) BuildImageWithContext(t *testing.T, config *integrat
 	if _, present := d.filesBuilt[dockerfile]; present {
 		return nil
 	}
-	gcsBucket, gcsClient, serviceAccount, imageRepo := config.gcsBucket, config.gcsClient, config.serviceAccount, config.imageRepo
+	gcsBucket, gcsClient, serviceAccount, imageRepo, rootless := config.gcsBucket, config.gcsClient, config.serviceAccount, config.imageRepo, config.rootless
 
 	var buildArgs []string
 	buildArgFlag := "--build-arg"
@@ -324,7 +326,7 @@ func (d *DockerFileBuilder) BuildImageWithContext(t *testing.T, config *integrat
 	kanikoImage := GetKanikoImage(imageRepo, dockerfile)
 	timer = timing.Start(dockerfile + "_kaniko")
 	if _, err := buildKanikoImage(t.Logf, dockerfilesPath, dockerfile, buildArgs, additionalKanikoFlags, kanikoImage,
-		contextDir, gcsBucket, gcsClient, serviceAccount, true); err != nil {
+		contextDir, gcsBucket, gcsClient, serviceAccount, true, rootless); err != nil {
 		return err
 	}
 	timing.DefaultRun.Stop(timer)
@@ -440,6 +442,15 @@ func (d *DockerFileBuilder) buildRelativePathsImage(imageRepo, dockerfile, servi
 	return nil
 }
 
+func getExecutorImage(rootless bool) string {
+	if rootless {
+		return RootlessExecutorImage
+	}
+	return ExecutorImage
+}
+
+var disabledApparmorAndSeccompFlags = []string{"--security-opt=apparmor=unconfined", "--security-opt=seccomp=unconfined"}
+
 func buildKanikoImage(
 	logf logger,
 	dockerfilesPath string,
@@ -452,6 +463,7 @@ func buildKanikoImage(
 	gcsClient *storage.Client,
 	serviceAccount string,
 	shdUpload bool,
+	rootless bool,
 ) (string, error) {
 	benchmarkEnv := "BENCHMARK_FILE=false"
 	benchmarkDir, err := ioutil.TempDir("", "")
@@ -482,6 +494,10 @@ func buildKanikoImage(
 		"-v", benchmarkDir + ":/kaniko/benchmarks",
 	}
 
+	if rootless {
+		// rootlessKit must be executed with apparmor and seccomp disabled
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
 	if env, ok := envsMap[dockerfile]; ok {
 		for _, envVariable := range env {
 			dockerRunFlags = append(dockerRunFlags, "-e", envVariable)
@@ -495,7 +511,7 @@ func buildKanikoImage(
 		kanikoDockerfilePath = path.Join(buildContextPath, "Dockerfile")
 	}
 
-	dockerRunFlags = append(dockerRunFlags, ExecutorImage,
+	dockerRunFlags = append(dockerRunFlags, getExecutorImage(rootless),
 		"-f", kanikoDockerfilePath,
 		"-d", kanikoImage,
 		"--force", // TODO: detection of whether kaniko is being run inside a container might be broken?

@@ -28,9 +28,10 @@ import (
 )
 
 type K8sConfig struct {
-	KanikoImage string
-	Context     string
-	Name        string
+	KanikoImage   string
+	Context       string
+	Name          string
+	ExecutorImage string
 }
 
 func TestK8s(t *testing.T) {
@@ -70,7 +71,12 @@ func TestK8s(t *testing.T) {
 			}
 			defer os.Remove(tmpfile.Name()) // clean up
 			tmpl := template.Must(template.ParseFiles("k8s-job.yaml"))
-			job := K8sConfig{KanikoImage: kanikoImage, Context: testDir, Name: name}
+			job := K8sConfig{
+				KanikoImage:   kanikoImage,
+				Context:       testDir,
+				Name:          name,
+				ExecutorImage: getExecutorImage(config.rootless),
+			}
 			if err := tmpl.Execute(tmpfile, job); err != nil {
 				t.Fatal(err)
 			}

@@ -102,9 +102,12 @@ func TestBuildWithStdin(t *testing.T) {
 	gzCmd := exec.Command("gzip", "-9")
 
 	dockerRunFlags := []string{"run", "--interactive", "--net=host", "-v", cwd + ":/workspace"}
+	if config.rootless {
+		dockerRunFlags = append(dockerRunFlags, disabledApparmorAndSeccompFlags...)
+	}
 	dockerRunFlags = addServiceAccountFlags(dockerRunFlags, config.serviceAccount)
 	dockerRunFlags = append(dockerRunFlags,
-		ExecutorImage,
+		getExecutorImage(config.rootless),
 		"-f", dockerfile,
 		"-c", "tar://stdin",
 		"-d", kanikoImageStdin)

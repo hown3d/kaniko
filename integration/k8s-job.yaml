@@ -4,11 +4,14 @@ metadata:
   name: kaniko-test-{{.Name}}
 spec:
   template:
+    annotations: 
+      container.apparmor.security.beta.kubernetes.io/kaniko: unconfined
+      container.seccomp.security.alpha.kubernetes.io/kaniko: unconfined
     spec:
       hostNetwork: true
       containers:
       - name: kaniko
-        image: localhost:5000/executor:latest
+        image: localhost:5000/{{.ExecutorImage}}:latest
         workingDir: /workspace
         args: [ "--context=dir:///workspace",
                 "--destination={{.KanikoImage}}"]
