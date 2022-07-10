@@ -23,6 +23,10 @@ jobs:
         - integration-test-misc
         - integration-test-run
         - k8s-executor-build-push integration-test-k8s
+        - integration-test-rootless-layers
+        - integration-test-rootless-misc
+        - integration-test-rootless-run
+        - k8s-executor-build-push integration-test-rootless-k8s
 
     steps:
     - uses: actions/setup-go@b22fbbc2921299758641fab08929b4ac52b32923 # v3

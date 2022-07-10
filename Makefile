@@ -87,11 +87,33 @@ integration-test-misc:
 	$(eval RUN_ARG=$(shell ./scripts/misc-integration-test.sh))
 	@ ./scripts/integration-test.sh -run "$(RUN_ARG)"
 
+
+.PHONY: integration-test-rootless-run
+integration-test-rootless-run:
+	@ ./scripts/integration-test.sh --rootless -run "TestRun"
+
+.PHONY: integration-test-rootless-layers
+integration-test-rootless-layers:
+	@ ./scripts/integration-test.sh --rootless -run "TestLayers"
+
+.PHONY: integration-test-rootless-k8s
+integration-test-rootless-k8s:
+	@ ./scripts/integration-test.sh --rootless -run "TestK8s"
+
+.PHONY: integration-test-rootless-misc
+integration-test-rootless-misc:
+	$(eval RUN_ARG=$(shell ./scripts/misc-integration-test.sh))
+	@ ./scripts/integration-test.sh --rootless -run "$(RUN_ARG)"
+
 .PHONY: k8s-executor-build-push
 k8s-executor-build-push:
-	DOCKER_BUILDKIT=1 docker build ${BUILD_ARG} --build-arg=GOARCH=$(GOARCH) -t $(REGISTRY)/executor:latest -f deploy/Dockerfile .
-	docker push $(REGISTRY)/executor:latest
+	DOCKER_BUILDKIT=1 docker build ${BUILD_ARG} --build-arg=GOARCH=$(GOARCH) -t $(REGISTRY)/executor-image:latest -f deploy/Dockerfile .
+	docker push $(REGISTRY)/executor-image:latest
 
+.PHONY: k8s-rootless-executor-build-push
+k8s-rootless-executor-build-push:
+	DOCKER_BUILDKIT=1 docker build ${BUILD_ARG} --build-arg=GOARCH=$(GOARCH) -t $(REGISTRY)/rootless-executor-image:latest -f deploy/Dockerfile .
+	docker push $(REGISTRY)/rootless-executor-image:latest
 
 .PHONY: images
 images: DOCKER_BUILDKIT=1
