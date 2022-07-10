@@ -72,7 +72,8 @@ RUN  ./autogen.sh --disable-nls --disable-man --without-audit --without-selinux 
 RUN make && \
   cp src/newuidmap src/newgidmap /bin
 
-FROM debian:bullseye-slim as rootless
+FROM scratch as rootless
+RUN --mount=from=busybox:musl,dst=/usr/ ["busybox", "sh", "-c", "touch /etc/passwd /etc/group && mkdir -p /kaniko /home/kaniko /run/user/1000 /tmp && addgroup -g 1000 kaniko && adduser -u 1000 -G kaniko -D kaniko && chown -R kaniko:kaniko /tmp /run/user/1000 /kaniko"]
 COPY --from=idmap /bin/newuidmap /bin/newgidmap /kaniko/
 # shadowutils is not a static binary, need to use musl libc
 COPY --from=idmap /lib/ld-musl-*.so.1 /lib/libc.musl-*.so.1 /lib/
@@ -82,7 +83,6 @@ RUN ["/kaniko/setcap", "cap_setuid+eip", "/kaniko/newuidmap"]
 RUN ["/kaniko/setcap", "cap_setgid+eip", "/kaniko/newgidmap"]
 # use musl busybox since it's staticly compiled
 # rootlesskit needs a /tmp directory
-RUN --mount=from=busybox:musl,dst=/usr/ ["busybox", "sh", "-c", "touch /etc/passwd /etc/group && mkdir -p /home/kaniko /run/user/1000 /tmp && addgroup -g 1000 kaniko && adduser -u 1000 -h /home/kaniko -G kaniko -D kaniko && chown -R kaniko:kaniko /tmp && chown -R kaniko:kaniko /run/user/1000"]
 USER kaniko
 COPY --from=rootlesskit /subuid /subgid /etc/
 COPY --from=0 /src/out/executor /kaniko/executor
@@ -97,20 +97,24 @@ COPY files/nsswitch.conf /etc/nsswitch.conf
 ENV HOME /home/kaniko
 ENV USER kaniko
 ENV XDG_RUNTIME_DIR=/run/user/1000
-ENV PATH /usr/local/bin:/kaniko:/busybox:/bin
+ENV PATH /usr/local/bin:/kaniko
 ENV SSL_CERT_DIR=/kaniko/ssl/certs
 ENV DOCKER_CONFIG /kaniko/.docker/
 ENV DOCKER_CREDENTIAL_GCR_CONFIG /kaniko/.config/gcloud/docker_credential_gcr_config.json
-
 WORKDIR /workspace
 ENTRYPOINT ["/kaniko/rootlesskit", "/kaniko/executor"]
 
+FROM rootless as rootless-debug
+USER 0
+COPY --from=busybox:musl /bin /busybox
+# Declare /busybox as a volume to get it automatically in the path to ignore
+VOLUME /busybox
+RUN ["/busybox/mkdir", "-p", "/bin"]
+RUN ["/busybox/ln", "-s", "/busybox/sh", "/bin/sh"]
+ENV PATH $PATH:/busybox:/bin
+USER kaniko
 
 FROM scratch
-# Create kaniko directory with world write permission to allow non root run
-# use musl busybox since it's staticly compiled
-RUN --mount=from=busybox:musl,dst=/usr/ ["busybox", "sh", "-c", "mkdir -p /kaniko && chmod 777 /kaniko"] 
-
 COPY --from=0 /src/out/executor /kaniko/executor
 COPY --from=0 /usr/local/bin/docker-credential-gcr /kaniko/docker-credential-gcr
 COPY --from=0 /usr/local/bin/docker-credential-ecr-login /kaniko/docker-credential-ecr-login
